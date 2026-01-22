@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -16,10 +17,14 @@ import (
 
 var filterList []string
 
+var (
+	port = flag.String("p", "8080", "proxy port")
+)
+
 func init() {
 	file, err := os.Open("list.txt")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("try to open filter list: %s\n", err)
 	}
 	defer file.Close()
 
@@ -35,12 +40,14 @@ func init() {
 }
 
 func main() {
-	listener, err := net.Listen("tcp", ":8080")
+	flag.Parse()
+
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", *port))
 	if err != nil {
 		log.Fatal("error starting tcp server:", err)
 	}
 	defer listener.Close()
-	fmt.Printf("listening on %s:%s\n", "localhost", "8080")
+	fmt.Printf("listening on %s:%s\n", "127.0.0.1", *port)
 
 	for {
 		conn, err := listener.Accept()
@@ -68,7 +75,7 @@ func handleConnection(localConn net.Conn) {
 			break
 		}
 
-		// Looking for HTTP-packet
+		// Looking for HTTP-packet. If not - skip
 		if res := bytes.Compare(buf[:7], []byte("CONNECT")); res != 0 {
 			localConn.Close()
 			return
@@ -187,7 +194,7 @@ func setReadBuffer(conn net.Conn) {
 
 // getAddressFromStream takes host and port out of HTTP-packet
 func getAddressFromStream(buffer []byte) (string, []byte, []byte) {
-	// CONNECT www.google.com:443 HTTP/1.1
+	// CONNECT www.google.com:443 HTTP/1.1\r\n
 	firstLine := bytes.Split(buffer, []byte("\r\n"))[0]
 
 	// [CONNECT www.google.com:443 HTTP/1.1]
