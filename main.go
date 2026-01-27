@@ -15,11 +15,14 @@ import (
 	"sync"
 )
 
-var filterList []string
-
+// flags
 var (
 	port = flag.String("p", "8080", "proxy port")
 )
+
+const HTTPSPort string = "443"
+
+var filterList []string
 
 func init() {
 	file, err := os.Open("list.txt")
@@ -60,6 +63,15 @@ func main() {
 	}
 }
 
+// isHTTPPacket checks is it HTTP packet or not
+func isHTTPPacket(b []byte) bool {
+	if res := bytes.Compare(b[:7], []byte("CONNECT")); res != 0 {
+		return false
+	}
+
+	return true
+}
+
 func handleConnection(localConn net.Conn) {
 	defer localConn.Close()
 
@@ -76,7 +88,7 @@ func handleConnection(localConn net.Conn) {
 		}
 
 		// Looking for HTTP-packet. If not - skip
-		if res := bytes.Compare(buf[:7], []byte("CONNECT")); res != 0 {
+		if !isHTTPPacket(buf) {
 			localConn.Close()
 			return
 		}
@@ -96,7 +108,7 @@ func handleConnection(localConn net.Conn) {
 
 		// filter logic
 		// Here is processing ClientHello packet.
-		if containsInList(string(host)) && string(port) == "443" {
+		if containsInList(string(host), filterList) && string(port) == HTTPSPort {
 			data := make([]byte, 1500)
 
 			n, err := localConn.Read(data)
@@ -104,9 +116,6 @@ func handleConnection(localConn net.Conn) {
 				fmt.Println("error reading data:", err)
 			}
 
-			// if isClientHello(data) {
-			// fmt.Println("ClientHello detected")
-			// }
 			if n > 5 {
 				data = fragmentate(data[5:n])
 				remoteConn.Write(data)
@@ -128,8 +137,6 @@ func handleConnection(localConn net.Conn) {
 		}()
 
 		wg.Wait()
-
-		fmt.Println("end waiting")
 	}
 }
 
@@ -182,16 +189,6 @@ func isClientHello(buffer []byte) bool {
 	return false
 }
 
-// setReadBuffer sets readBuffer to new value
-func setReadBuffer(conn net.Conn) {
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		err := tcpConn.SetReadBuffer(1500)
-		if err != nil {
-			fmt.Printf("failed to set read buffer: %s\n", err)
-		}
-	}
-}
-
 // getAddressFromStream takes host and port out of HTTP-packet
 func getAddressFromStream(buffer []byte) (string, []byte, []byte) {
 	// CONNECT www.google.com:443 HTTP/1.1\r\n
@@ -210,9 +207,9 @@ func getAddressFromStream(buffer []byte) (string, []byte, []byte) {
 }
 
 // containsInList checks if item exists in list.
-// O(n) check depends on length of filterList
-func containsInList(data string) bool {
-	for _, elem := range filterList {
+// O(n) check depends on length of list
+func containsInList(data string, list []string) bool {
+	for _, elem := range list {
 		if strings.Contains(data, elem) {
 			return true
 		}
