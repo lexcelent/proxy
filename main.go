@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -22,9 +23,20 @@ var (
 
 const HTTPSPort string = "443"
 
-var filterList []string
+var (
+	filterList []string
+	blockList  []string
+)
 
-func init() {
+func filterListInit() {
+	_, err := os.Stat("list.txt")
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("there is no filters\n")
+		return
+	} else if err != nil {
+		log.Fatalf("error check file exists: %s", err)
+	}
+
 	file, err := os.Open("list.txt")
 	if err != nil {
 		log.Fatalf("try to open filter list: %s\n", err)
@@ -40,6 +52,37 @@ func init() {
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func blockListInit() {
+	_, err := os.Stat("block.txt")
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("there is no block filters\n")
+		return
+	} else if err != nil {
+		log.Fatalf("error check file exists: %s", err)
+	}
+
+	file, err := os.Open("block.txt")
+	if err != nil {
+		log.Fatalf("try to open filter list: %s\n", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		blockList = append(blockList, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func init() {
+	filterListInit()
+	blockListInit()
 }
 
 func main() {
@@ -93,10 +136,16 @@ func handleConnection(localConn net.Conn) {
 			return
 		}
 
-		localConn.Write([]byte("HTTP/1.1 200 OK\n\n"))
-
 		// Process HTTP-packet
 		address, host, port := getAddressFromStream(buf)
+
+		// block sites you don't wanna see
+		if containsInList(string(host), blockList) && string(port) == HTTPSPort {
+			localConn.Close()
+			return
+		}
+
+		localConn.Write([]byte("HTTP/1.1 200 OK\n\n"))
 
 		// open new connection
 		remoteConn, err := net.Dial("tcp", address)
