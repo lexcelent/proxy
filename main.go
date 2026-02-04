@@ -29,7 +29,9 @@ var (
 )
 
 func filterListInit() {
-	_, err := os.Stat("list.txt")
+	filename := "list.txt"
+
+	_, err := os.Stat(filename)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Printf("there is no filters\n")
 		return
@@ -37,7 +39,7 @@ func filterListInit() {
 		log.Fatalf("error check file exists: %s", err)
 	}
 
-	file, err := os.Open("list.txt")
+	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("try to open filter list: %s\n", err)
 	}
@@ -46,6 +48,16 @@ func filterListInit() {
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
+		// Комментарии в список не добавляем
+		if strings.HasPrefix(scanner.Text(), "#") {
+			continue
+		}
+
+		// Пустые строки игнорируем
+		if len(scanner.Text()) == 0 {
+			continue
+		}
+
 		filterList = append(filterList, scanner.Text())
 	}
 
@@ -55,7 +67,9 @@ func filterListInit() {
 }
 
 func blockListInit() {
-	_, err := os.Stat("block.txt")
+	filename := "block.txt"
+
+	_, err := os.Stat(filename)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Printf("there is no block filters\n")
 		return
@@ -63,7 +77,7 @@ func blockListInit() {
 		log.Fatalf("error check file exists: %s", err)
 	}
 
-	file, err := os.Open("block.txt")
+	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("try to open filter list: %s\n", err)
 	}
@@ -258,6 +272,7 @@ func getAddressFromStream(buffer []byte) (string, []byte, []byte) {
 // containsInList checks if item exists in list.
 // O(n) check depends on length of list
 func containsInList(data string, list []string) bool {
+	// TODO: Is it possible make search O(1) using map ?
 	for _, elem := range list {
 		if strings.Contains(data, elem) {
 			return true
