@@ -132,75 +132,72 @@ func isHTTPPacket(b []byte) bool {
 func handleConnection(localConn net.Conn) {
 	defer localConn.Close()
 
-	for {
-		buf := make([]byte, 1500)
-		n, err := localConn.Read(buf)
-		if n > 0 {
-			fmt.Printf("read %d bytes\n", n)
-			// fmt.Printf("data: %s\n", buf)
-		}
-		if err != nil {
-			fmt.Printf("error reading stream: %s\n", err)
-			break
-		}
-
-		// Looking for HTTP-packet. If not - skip
-		if !isHTTPPacket(buf) {
-			localConn.Close()
-			return
-		}
-
-		// Process HTTP-packet
-		address, host, port := getAddressFromStream(buf)
-
-		// block sites you don't wanna see
-		if containsInList(string(host), blockList) && string(port) == HTTPSPort {
-			localConn.Close()
-			return
-		}
-
-		localConn.Write([]byte("HTTP/1.1 200 OK\n\n"))
-
-		// open new connection
-		remoteConn, err := net.Dial("tcp", address)
-		if err != nil {
-			fmt.Println("error connecting:", err)
-			return
-		}
-		defer remoteConn.Close()
-
-		// filter logic
-		// Here is processing ClientHello packet.
-		if containsInList(string(host), filterList) && string(port) == HTTPSPort {
-			data := make([]byte, 1500)
-
-			n, err := localConn.Read(data)
-			if err != nil {
-				fmt.Println("error reading data:", err)
-			}
-
-			if n > 5 {
-				data = fragmentate(data[5:n])
-				remoteConn.Write(data)
-			}
-		}
-
-		// Data exchange
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		go func() {
-			io.Copy(remoteConn, localConn)
-			wg.Done()
-		}()
-
-		go func() {
-			io.Copy(localConn, remoteConn)
-			wg.Done()
-		}()
-
-		wg.Wait()
+	buf := make([]byte, 1500)
+	n, err := localConn.Read(buf)
+	if n > 0 {
+		fmt.Printf("read %d bytes\n", n)
+		// fmt.Printf("data: %s\n", buf)
 	}
+	if err != nil {
+		fmt.Printf("error reading stream: %s\n", err)
+		return
+	}
+
+	// Looking for HTTP-packet. If not - skip
+	if !isHTTPPacket(buf) {
+		return
+	}
+
+	// Process HTTP-packet
+	address, host, port := getAddressFromStream(buf)
+
+	// block sites you don't wanna see
+	if containsInList(string(host), blockList) && string(port) == HTTPSPort {
+		return
+	}
+
+	localConn.Write([]byte("HTTP/1.1 200 OK\n\n"))
+
+	// open new connection
+	remoteConn, err := net.Dial("tcp", address)
+	if err != nil {
+		fmt.Println("error connecting:", err)
+		return
+	}
+	defer remoteConn.Close()
+
+	// filter logic
+	// Here is processing ClientHello packet.
+	if containsInList(string(host), filterList) && string(port) == HTTPSPort {
+		data := make([]byte, 1500)
+
+		n, err := localConn.Read(data)
+		if err != nil {
+			fmt.Println("error reading data:", err)
+		}
+
+		if n > 5 {
+			data = fragmentate(data[5:n])
+			remoteConn.Write(data)
+		}
+	}
+
+	// Data exchange
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		io.Copy(remoteConn, localConn)
+		wg.Done()
+	}()
+
+	go func() {
+		io.Copy(localConn, remoteConn)
+		wg.Done()
+	}()
+
+	wg.Wait()
+
 }
 
 // fragmentate splits a packet into a random number of pieces.
