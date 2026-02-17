@@ -5,14 +5,30 @@ Simple Golang HTTP-proxy server
 
 # Getting started
 
-It's simple
+It's simple. You can find "step by step" guide in `./example` folder
 
-1. Clone repo
-2. Enter: `go build ./main.go`
-3. Just launch
+Example of `main.go` file:
+
+```
+package main
+
+import (
+	"log"
+
+	"github.com/lexcelent/proxy"
+)
+
+func main() {
+	s := proxy.Server{}
+	if err := s.ListenAndServe("tcp", ":8080"); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+}
+```
 
 
 ## TODO
 
-- flags
 - HTTPS
+- logger
+- statistics

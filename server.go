@@ -1,11 +1,10 @@
-package main
+package proxy
 
 import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -16,18 +15,14 @@ import (
 	"sync"
 )
 
-// flags
-var (
-	port = flag.String("p", "8080", "proxy port")
-)
-
-const HTTPSPort string = "443"
-
 var (
 	filterList []string
 	blockList  []string
 )
 
+const HTTPSPort string = "443"
+
+// filterListInit loads list of hosts for HTTP analysis
 func filterListInit() {
 	filename := "list.txt"
 
@@ -66,6 +61,7 @@ func filterListInit() {
 	}
 }
 
+// blockListInit loads list of hosts you want to block connection
 func blockListInit() {
 	filename := "block.txt"
 
@@ -94,42 +90,40 @@ func blockListInit() {
 	}
 }
 
+// init loads lists for filtering
 func init() {
 	filterListInit()
 	blockListInit()
 }
 
-func main() {
-	flag.Parse()
+// Server is proxy server
+type Server struct {
+}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", *port))
+// ListenAndServe starts the server
+func (s *Server) ListenAndServe(network, address string) error {
+	listener, err := net.Listen(network, address)
 	if err != nil {
-		log.Fatal("error starting tcp server:", err)
+		return err
 	}
-	defer listener.Close()
-	fmt.Printf("listening on %s:%s\n", "127.0.0.1", *port)
+	return s.Serve(listener)
+}
 
+// Serve accepting connections
+func (s *Server) Serve(listener net.Listener) error {
+	defer listener.Close()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatal("error accepting connection:", err)
-			continue
+			return err
 		}
 
-		go handleConnection(conn)
+		go s.handleConnection(conn)
 	}
 }
 
-// isHTTPPacket checks is it HTTP packet or not
-func isHTTPPacket(b []byte) bool {
-	if res := bytes.Compare(b[:7], []byte("CONNECT")); res != 0 {
-		return false
-	}
-
-	return true
-}
-
-func handleConnection(localConn net.Conn) {
+// handleConnection reads TCP-packets
+func (s *Server) handleConnection(localConn net.Conn) {
 	defer localConn.Close()
 
 	buf := make([]byte, 1500)
@@ -182,7 +176,7 @@ func handleConnection(localConn net.Conn) {
 		}
 	}
 
-	// Data exchange
+	// Proxying
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -197,7 +191,6 @@ func handleConnection(localConn net.Conn) {
 	}()
 
 	wg.Wait()
-
 }
 
 // fragmentate splits a packet into a random number of pieces.
@@ -277,4 +270,13 @@ func containsInList(data string, list []string) bool {
 	}
 
 	return false
+}
+
+// isHTTPPacket checks is it HTTP packet or not
+func isHTTPPacket(b []byte) bool {
+	if res := bytes.Compare(b[:7], []byte("CONNECT")); res != 0 {
+		return false
+	}
+
+	return true
 }
