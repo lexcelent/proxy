@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Parse takes TLS packet and shows everything until SNI Extension
+// Parse takes TLS packet and shows first SNI Extension
 func Parse(packet []byte) {
 	TLSType := packet[0]
 	TLSVersion := packet[1:3] // 2 bytes
@@ -30,7 +30,7 @@ func Parse(packet []byte) {
 
 	// 2 bytes
 	CipherSuitesLengthBytes := arr[0:2]
-	CipherSuitesLength := binary.BigEndian.Uint16(CipherSuitesLengthBytes) // Получили длину шифронаборов
+	CipherSuitesLength := binary.BigEndian.Uint16(CipherSuitesLengthBytes) // get cipher length
 
 	CipherSuites := arr[2 : 2+CipherSuitesLength]
 
@@ -40,14 +40,14 @@ func Parse(packet []byte) {
 	arr = arr[2+CipherSuitesLength:]
 
 	CompMethodsLength := arr[0]
-	CompMethods := arr[1] // или плюсануть прошлую длину, получится слайс
+	CompMethods := arr[1] // or add CompMethodsLength to get slice ?
 
 	fmt.Printf("CompMethodsLength: %d\tCompMethods: %d\n", CompMethodsLength, CompMethods)
 
 	// Extensions
 	ExtensionsLength := binary.BigEndian.Uint16(arr[2:4]) // arr[2:4] to int
 
-	arr = arr[4:100] // Нам много здесь не нужно
+	arr = arr[4:100] // we don't need a lot of data
 
 	fmt.Printf("ExtensionsLength: %d\n", ExtensionsLength)
 

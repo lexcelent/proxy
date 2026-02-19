@@ -22,14 +22,12 @@ var (
 
 const HTTPSPort string = "443"
 
-// filterListInit loads list of hosts for HTTP analysis
-func filterListInit() {
-	filename := "list.txt"
-
+// listInit loads list with hosts from file
+func listInit(list []string, filename string) []string {
 	_, err := os.Stat(filename)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Printf("there is no filters\n")
-		return
+		return list
 	} else if err != nil {
 		log.Fatalf("error check file exists: %s", err)
 	}
@@ -53,47 +51,20 @@ func filterListInit() {
 			continue
 		}
 
-		filterList = append(filterList, scanner.Text())
+		list = append(list, scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
-}
 
-// blockListInit loads list of hosts you want to block connection
-func blockListInit() {
-	filename := "block.txt"
-
-	_, err := os.Stat(filename)
-	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("there is no block filters\n")
-		return
-	} else if err != nil {
-		log.Fatalf("error check file exists: %s", err)
-	}
-
-	file, err := os.Open(filename)
-	if err != nil {
-		log.Fatalf("try to open filter list: %s\n", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		blockList = append(blockList, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
+	return list
 }
 
 // init loads lists for filtering
 func init() {
-	filterListInit()
-	blockListInit()
+	filterList = listInit(filterList, "list.txt")
+	blockList = listInit(blockList, "block.txt")
 }
 
 // Server is proxy server
