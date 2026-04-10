@@ -22,6 +22,8 @@ var (
 
 const HTTPSPort string = "443"
 
+var cmdConnect = []byte("CONNECT")
+
 // listInit loads list with hosts from file
 func listInit(list []string, filename string) []string {
 	_, err := os.Stat(filename)
@@ -100,10 +102,9 @@ func (s *Server) handleConnection(localConn net.Conn) {
 	buf := make([]byte, 1500)
 	n, err := localConn.Read(buf)
 	if n > 0 {
-		fmt.Printf("read %d bytes\n", n)
-		// fmt.Printf("data: %s\n", buf)
+		fmt.Printf("read %d bytes\r", n)
 	}
-	if err != nil {
+	if err != nil && err != io.EOF {
 		fmt.Printf("error reading stream: %s\n", err)
 		return
 	}
@@ -245,7 +246,7 @@ func containsInList(data string, list []string) bool {
 
 // isHTTPPacket checks is it HTTP packet or not
 func isHTTPPacket(b []byte) bool {
-	if res := bytes.Compare(b[:7], []byte("CONNECT")); res != 0 {
+	if res := bytes.Compare(b[:7], cmdConnect); res != 0 {
 		return false
 	}
 

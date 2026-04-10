@@ -16,6 +16,7 @@ func main() {
 	flag.Parse()
 
 	s := proxy.Server{}
+	fmt.Printf("Server has been started on port %s\n", *port)
 	if err := s.ListenAndServe("tcp", fmt.Sprintf(":%s", *port)); err != nil {
 		log.Fatalf("error: %s\n", err)
 	}
