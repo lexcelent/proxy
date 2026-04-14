@@ -26,6 +26,10 @@ func main() {
 }
 ```
 
+## DEV branch
+
+`dev` contains experimental features.  
+Currently it contains only Statistics (total bytes read)
 
 ## TODO
 
