@@ -2,10 +2,13 @@ package stats
 
 import "sync/atomic"
 
+// Counter is a basic implementation of
+// thread-safe counter
 type Counter struct {
 	counter atomic.Int64
 }
 
+// New returns new Counter
 func New() *Counter {
 	return &Counter{counter: atomic.Int64{}}
 }
