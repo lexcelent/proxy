@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/lexcelent/proxy/stats"
 )
 
 var (
@@ -71,6 +73,22 @@ func init() {
 
 // Server is proxy server
 type Server struct {
+	stats *stats.Counter
+}
+
+// New creates new server.
+// TODO: Use options pattern instead of bool.
+// TODO: Load config from file
+func New(statistics bool) *Server {
+	s := &Server{
+		stats: nil,
+	}
+
+	if statistics {
+		s.stats = &stats.Counter{}
+	}
+
+	return s
 }
 
 // ListenAndServe starts the server
@@ -102,7 +120,12 @@ func (s *Server) handleConnection(localConn net.Conn) {
 	buf := make([]byte, 1500)
 	n, err := localConn.Read(buf)
 	if n > 0 {
-		fmt.Printf("read %d bytes\r", n)
+		if s.stats != nil {
+			s.stats.Add(int64(n))
+			fmt.Printf("read %d bytes\r", s.stats.Total())
+		} else {
+			fmt.Printf("read %d bytes\r", n)
+		}
 	}
 	if err != nil && err != io.EOF {
 		fmt.Printf("error reading stream: %s\n", err)
