@@ -3,68 +3,152 @@ package clienthello
 import (
 	"encoding/binary"
 	"fmt"
+
+	"golang.org/x/crypto/cryptobyte"
 )
 
+type TLSClientHello struct {
+	TLSType    byte
+	TLSVersion []byte
+	TLSLength  []byte
+
+	HandshakeType   byte
+	HandshakeLength []byte
+
+	TLSClientVersion []byte
+	RandomBytes      []byte
+
+	SessionIDLength byte
+	SessionID       []byte
+
+	CipherSuitesLength []byte
+	CipherSuites       []byte
+
+	CompMethodsLength byte
+	CompMethods       byte
+
+	ExtensionsLength []byte
+
+	ExtType   []byte
+	ExtLength []byte
+
+	ServerNameListLength []byte
+	ServerNameType       byte
+	ServerNameLength     []byte
+	ServerName           []byte
+}
+
 // Parse takes TLS packet and shows first SNI Extension
-func Parse(packet []byte) {
-	TLSType := packet[0]
-	TLSVersion := packet[1:3] // 2 bytes
-	TLSLength := packet[3:5]
-	HandshakeType := packet[5] // client hello
-	HandshakeLength := packet[6:9]
-	ClientTLSVersion := packet[9:11]
+func Parse(packet []byte) error {
+	p := cryptobyte.String(packet)
 
-	// probably 32 bytes and not 28
-	RandomBytes := packet[11:43]
+	if p.Empty() {
+		return fmt.Errorf("error empty packet")
+	}
 
-	fmt.Println(TLSType, TLSVersion, TLSLength, HandshakeType, HandshakeLength, ClientTLSVersion, RandomBytes)
+	clientHello := &TLSClientHello{}
 
-	SessionIDLength := packet[43]
-	SessionID := packet[44 : 44+int(SessionIDLength)]
+	/* Header */
 
-	fmt.Printf("SessionIDLength: %d\tSessionID: %v\n", SessionIDLength, SessionID)
-	fmt.Printf("Real Length: %d\n", len(SessionID))
+	if !p.ReadUint8(&clientHello.TLSType) {
+		return fmt.Errorf("error TLS Type")
+	}
 
-	// SESSION ID
-	arr := packet[44+int(SessionIDLength):]
+	if !p.ReadBytes(&clientHello.TLSVersion, 2) {
+		return fmt.Errorf("error TLS Version")
+	}
 
-	// 2 bytes
-	CipherSuitesLengthBytes := arr[0:2]
-	CipherSuitesLength := binary.BigEndian.Uint16(CipherSuitesLengthBytes) // get cipher length
+	if !p.ReadBytes(&clientHello.TLSLength, 2) {
+		return fmt.Errorf("error TLS Length")
+	}
 
-	CipherSuites := arr[2 : 2+CipherSuitesLength]
+	/* Handshake */
 
-	fmt.Printf("CipherSuitesLengthBytes: %v\tCipherSuitesLength: %d\n", CipherSuitesLengthBytes, CipherSuitesLength)
-	fmt.Printf("CipherSuites: %v\n", CipherSuites)
+	if !p.ReadUint8(&clientHello.HandshakeType) {
+		return fmt.Errorf("error Handshake type")
+	}
 
-	arr = arr[2+CipherSuitesLength:]
+	if !p.ReadBytes(&clientHello.HandshakeLength, 3) {
+		return fmt.Errorf("error Handshake Length")
+	}
 
-	CompMethodsLength := arr[0]
-	CompMethods := arr[1] // or add CompMethodsLength to get slice ?
+	if !p.ReadBytes(&clientHello.TLSClientVersion, 2) {
+		return fmt.Errorf("error TLS Client Version")
+	}
 
-	fmt.Printf("CompMethodsLength: %d\tCompMethods: %d\n", CompMethodsLength, CompMethods)
+	if !p.ReadBytes(&clientHello.RandomBytes, 32) {
+		return fmt.Errorf("error TLS Random bytes")
+	}
 
-	// Extensions
-	ExtensionsLength := binary.BigEndian.Uint16(arr[2:4]) // arr[2:4] to int
+	/* Session info */
 
-	arr = arr[4:100] // we don't need a lot of data
+	if !p.ReadUint8(&clientHello.SessionIDLength) {
+		return fmt.Errorf("error SessionID Length")
+	}
 
-	fmt.Printf("ExtensionsLength: %d\n", ExtensionsLength)
+	if !p.ReadBytes(&clientHello.SessionID, int(clientHello.SessionIDLength)) {
+		return fmt.Errorf("error SessionID")
+	}
 
-	ExtensionType := arr[0:2] // type 00 00 == SNI
+	/* Cipher Suites */
 
-	ExtensionLength := binary.BigEndian.Uint16(arr[2:4])
+	if !p.ReadBytes(&clientHello.CipherSuitesLength, 2) {
+		return fmt.Errorf("error Cipher Suites Length")
+	}
 
-	fmt.Printf("ExtensionType: %v\tExtensionLength: %d\n", ExtensionType, ExtensionLength)
+	if !p.ReadBytes(&clientHello.CipherSuites, int(binary.BigEndian.Uint16(clientHello.CipherSuitesLength))) {
+		return fmt.Errorf("error Cipher Suites")
+	}
 
-	ServerNameListLength := arr[4:6]
-	ServerNameType := arr[6] // 00 hostname
-	ServerNameLengthBytes := arr[7:9]
-	ServerNameLength := binary.BigEndian.Uint16(ServerNameLengthBytes)
-	ServerName := arr[9 : 10+ServerNameLength]
+	/* Compression */
 
-	fmt.Printf("ServerNameListLength: %v\n", ServerNameListLength)
-	fmt.Printf("ServerNameType: %d\n", ServerNameType)
+	if !p.ReadUint8(&clientHello.CompMethodsLength) {
+		return fmt.Errorf("error Compression Methods Length")
+	}
 
-	fmt.Printf("%s\n", ServerName)
+	if !p.ReadUint8(&clientHello.CompMethods) {
+		return fmt.Errorf("error Compression Methods")
+	}
+
+	/* Extensions */
+
+	if !p.ReadBytes(&clientHello.ExtensionsLength, 2) {
+		return fmt.Errorf("error Extensions Length")
+	}
+
+	/* Single Extension */
+
+	// TODO: Wrap in loop to parse every extension
+
+	if !p.ReadBytes(&clientHello.ExtType, 2) {
+		return fmt.Errorf("error Extension Type")
+	}
+
+	if !p.ReadBytes(&clientHello.ExtLength, 2) {
+		return fmt.Errorf("error Extension Length")
+	}
+
+	// Parse SNI
+
+	// TODO: Wrap for every SNI
+
+	if !p.ReadBytes(&clientHello.ServerNameListLength, 2) {
+		return fmt.Errorf("error Server Name List Length")
+	}
+
+	if !p.ReadUint8(&clientHello.ServerNameType) {
+		return fmt.Errorf("error Server Name Type")
+	}
+
+	if !p.ReadBytes(&clientHello.ServerNameLength, 2) {
+		return fmt.Errorf("error Server Name Length")
+	}
+
+	if !p.ReadBytes(&clientHello.ServerName, int(binary.BigEndian.Uint16(clientHello.ServerNameLength))) {
+		return fmt.Errorf("error Server Name")
+	}
+
+	fmt.Printf("Server Name: %s\n", clientHello.ServerName)
+
+	return nil
 }
